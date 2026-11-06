@@ -180,10 +180,10 @@ export function createPublisher({ core, access }) {
     const prev = settings().get('published') || { id: 'published', hashes: {} };
     const todo = force ? await Promise.all(items().map(async it => ({ ...it, hash: await sha(canon(it.data)) }))) : await plan();
     const hashes = { ...(prev.hashes || {}) };
-    for (const it of todo) {
-      await access.publish({ id: it.id, tier: it.tier, data: it.data });
-      hashes[`${it.tier}/${it.id}`] = it.hash;
-      await settings().put({ ...prev, id: 'published', hashes }); // 하나씩 기록 (끊겨도 다음에 이어서)
+    // 바뀐 등급 항목을 모두 공개 저장소 커밋 하나로 (access.publishMany). 끊기면 아무것도 바뀌지 않아 다음 게시가 처음부터 다시 한다
+    if (todo.length) {
+      await access.publishMany(todo.map(it => ({ id: it.id, tier: it.tier, data: it.data })), { message: `게시 ${todo.length}개` });
+      for (const it of todo) hashes[`${it.tier}/${it.id}`] = it.hash;
     }
     const at = new Date().toISOString();
     await settings().put({ ...settings().get('published'), id: 'published', hashes, at: todo.length ? at : prev.at, by: todo.length ? core.status().user || '' : prev.by });
@@ -244,22 +244,20 @@ function splitCsv(line) {
 // 고객 한 줄 → access 역할 (제품 하나면 그 제품 등급, 아니면 모든 제품)
 export const customerRole = row => (row.products?.length === 1 && tierOfProduct(row.products[0])) || 'customer';
 
-// CSV 가져오기: 한 줄마다 admin.addPerson({ identifier: 고객ID, code: 인증번호 }) — 공용 access 가 40비트 미만이면 weak-code
+// CSV 가져오기: admin.addPeople 한 번 ({ identifier: 고객ID, code: 인증번호 } 줄마다) — 공용 access 가 40비트 미만이면 weak-code.
+// 몇 줄이든 공개 저장소 커밋 하나 (GitHub API 요청 약 24번 + 데이터 저장소 조각 17개 이하). 예전처럼 줄마다 올리면 수백 줄에 시간당 5000번 한도를 넘는다.
+// onProgress(done, total): 자리 만들기(PBKDF2) 진행 — total 은 넣을 수 있는 줄 수
 export async function importCustomers(admin, rows, { acceptWeak = false, onProgress = () => {} } = {}) {
-  const rep = { added: [], weak: [], duplicate: [], failed: [], multi: 0 };
-  for (const [i, r] of rows.entries()) {
-    onProgress(i, rows.length);
-    if (r.products.length > 1) rep.multi++;
-    try {
-      const res = await admin.addPerson({ name: r.label || r.id, identifier: r.id, role: customerRole(r), code: r.number, acceptWeak });
-      rep.added.push({ pid: res.person.id, bits: res.bits, weak: res.weak, line: r.line });
-      if (res.weak) rep.weak.push(r.line);
-    } catch (e) {
-      if (e.code === 'weak-code') rep.weak.push(r.line);
-      else if (e.code === 'duplicate') rep.duplicate.push(r.line);
-      else rep.failed.push(`${r.line}줄: ${e.message}`);
-    }
+  const rep = { added: [], weak: [], duplicate: [], failed: [], multi: rows.filter(r => r.products.length > 1).length };
+  const res = await admin.addPeople(rows.map(r => ({ name: r.label || r.id, identifier: r.id, role: customerRole(r), code: r.number })), { acceptWeak, onProgress });
+  for (const [i, x] of res.entries()) {
+    const r = rows[i];
+    if (x.person) {
+      rep.added.push({ pid: x.person.id, bits: x.bits, weak: x.weak, line: r.line });
+      if (x.weak) rep.weak.push(r.line);
+    } else if (x.error.code === 'weak-code') rep.weak.push(r.line);
+    else if (x.error.code === 'duplicate') rep.duplicate.push(r.line);
+    else rep.failed.push(`${r.line}줄: ${x.error.message}`);
   }
-  onProgress(rows.length, rows.length);
   return rep;
 }

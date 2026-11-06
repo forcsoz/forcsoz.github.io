@@ -180,8 +180,10 @@ await test('사람: 팀원·작성자(@forcs.com 주소마다 코드+초대 글)
   codes.team = t.code;
   codes.writer = (await adm.addPerson({ name: '시험 작성자', identifier: 'writer.tester@forcs.com', role: 'writer' })).code;
   const rows = parseCustomerCsv('고객ID,인증번호,고객명,제품\nCUST-ALL,Q7RK-29XM-HT4P-WZ6D,가회사,\nCUST-SRV,M3VD-8KQT-ZP2X-LR9C,나회사,Server (servlet)\nCUST-WEAK,20261234,다회사,', FAKE.products).rows;
+  const c0 = W.site.commitLog.length;
   const rep = await importCustomers(adm, rows);
   eq([rep.added.length, rep.weak], [2, [4]], '약한 번호 줄은 거부');
+  eq(W.site.commitLog.length, c0 + 1, 'CSV 여러 줄 → 공개 저장소 커밋 하나 (addPeople)');
   const rep2 = await importCustomers(adm, rows.slice(2), { acceptWeak: true });
   assert(rep2.added.length === 1 && rep2.added[0].weak && rep2.added[0].bits < 40, '알고 받기(acceptWeak)');
   await rejects(() => adm.addPerson({ name: 'x', identifier: 'CUST-ALL', role: 'customer', code: 'ZZZZ-ZZZZ-ZZZZ-ZZZZ' }), 'duplicate', '같은 고객 ID');
@@ -190,8 +192,10 @@ await test('사람: 팀원·작성자(@forcs.com 주소마다 코드+초대 글)
 });
 
 await test('게시: 등급마다 항목 → 공개는 평문(기술공지만), 나머지는 암호문, keyring 에 아이디·이름 없음', async () => {
+  const c0 = W.site.commitLog.length;
   const r = await pub.publish();
   assert(r.changed >= 6, `게시 ${JSON.stringify(r)}`);
+  eq(W.site.commitLog.length, c0 + 1, `게시 ${r.changed}개 → 커밋 하나 (publishMany)`);
   eq((await pub.publish()).changed, 0, '바뀐 것 없으면 0');
   const all = W.siteAll();
   assert(all.includes('시험 패치 하나'), '공개 목록에 제목(기술공지)');

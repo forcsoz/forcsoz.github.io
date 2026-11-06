@@ -1,4 +1,4 @@
-// 개발용: core-test.html · test.html 을 헤드리스 Edge 로 돌리고 결과를 보여 준다.
+// 개발용: core-test.html · access-test.html · test.html 을 헤드리스 Edge 로 돌리고 결과를 보여 준다.
 //   node tools/run-tests.mjs            (둘 다)
 //   node tools/run-tests.mjs tier-test.html
 // 콘솔 오류·CSP 위반이 있으면 실패로 친다.
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const pages = process.argv.slice(2).length ? process.argv.slice(2) : ['core-test.html', 'test.html'];
+const pages = process.argv.slice(2).length ? process.argv.slice(2) : ['core-test.html', 'access-test.html', 'test.html'];
 const seed = process.env.FORCSOZ_SEED; // 있으면 시험 페이지가 /__seed/ 에서 실제 seed 로도 시험한다 (회사 자료는 저장소 밖)
 const { server, port } = await serve(root, 0, { mounts: seed ? { '/__seed/': seed } : {} });
 const { browser, close } = await launch();

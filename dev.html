@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- 이 사이트가 연결하는 곳:
+       자기 자신(팀원용 암호문 r/content.json, 스크립트·글꼴 모두 이 사이트 안), GitHub API(관리자 저장),
+       raw.githubusercontent.com(공개 파일 저장소 files-N 의 암호문), oztn.net·docs.google.com(링크 점검을 누를 때만, 응답 여부만).
+       바깥 스크립트는 없다. PDF 는 이 기기에서 풀어서 pdf.js(사이트 안)로 그린다. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self' data:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://oztn.net https://docs.google.com; worker-src 'self'; frame-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#1f5fbf">
+  <!-- 개발·시험용: 실제 GitHub 대신 메모리 안의 가짜 GitHub. 새로고침하면 사라진다. 회사 자료는 들어 있지 않다 (?seed=1 이면 시험 서버의 /__seed/ 에서 받음) -->
+  <title>OZ 보안 패치 — 개발용 (가짜 GitHub)</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="app"><div class="lock"><p class="muted">여는 중…</p></div></div>
+  <dialog id="modal" class="modal"><div id="modal-body"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <noscript><p class="noscript">이 사이트는 자바스크립트가 켜져 있어야 보여요.</p></noscript>
+  <script type="module" src="dev/dev.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# 회사 자료(노션에서 옮긴 seed·파일)는 절대 커밋하지 않는다 — 관리자가 사이트의 가져오기로 넣으면 암호화된다
+*seed*.json
+forcsoz-seed/
+files/
+*.pdf
+*.pptx
+checker-cases.json
+tools/_*
+node_modules/

@@ -4,7 +4,7 @@
 import { assemble } from './tiers.js';
 
 export function createSite({ access }) {
-  const st = { open: {}, at: {}, offline: false, sig: '' };
+  const st = { open: {}, at: {}, offline: false, sig: '', preSetup: false };
 
   async function readAll() {
     const open = {};
@@ -30,10 +30,20 @@ export function createSite({ access }) {
   }
 
   // → 'none'(아직 게시된 것 없음) | 'ok'. 기억해 둔 로그인이 있으면 다시 들어간다 (access.resume)
-  async function load() {
+  // 공개 항목만 (GitHub Pages 에서 바로, 이 기기 저장소 IndexedDB 는 쓰지 않음 → 첫 화면을 먼저 그릴 수 있다).
+  // 게시된 것이 없으면 keyring.json 도 본다: 없으면(404) 처음 설정 전 → 공개 화면에 관리자용 «처음 설정»
+  async function loadPublic() {
+    await readAll();
+    if (st.open['public/pub']) { st.preSetup = false; return 'ok'; }
+    try { st.preSetup = !(await access.keyring()); } catch (e) { if (e.code !== 'offline') console.warn(e); }
+    return 'none';
+  }
+
+  // skipPublic: 방금 loadPublic 으로 받았고 기억한 로그인이 없으면 다시 받지 않는다
+  async function load({ skipPublic = false } = {}) {
     try { await access.resume(); } catch {}
     try {
-      await readAll();
+      if (!(skipPublic && !access.me())) await readAll();
     } catch (e) {
       if (e.code === 'revoked') { await access.logout(); await readAll(); } else throw e;
     }
@@ -62,8 +72,10 @@ export function createSite({ access }) {
   }
 
   return {
-    load, login, logout, refresh, source,
+    load, loadPublic, login, logout, refresh, source,
     get info() { return access.me(); },
+    get preSetup() { return !!st.preSetup; },
+    get sig() { return st.sig; },
     get offline() { return st.offline; },
     get published() { return !!st.open['public/pub']; },
     get opened() { return st.open; },

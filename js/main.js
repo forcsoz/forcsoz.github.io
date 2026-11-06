@@ -5,5 +5,6 @@ import { createSite } from './site.js';
 import { fetchPublic } from './files.js';
 import { startApp } from './app.js';
 
-const access = makeAccess({ kvName: 'forcsoz-access' });
+// 공개 파일(keyring.json · access/…)은 이 페이지와 같은 곳에서 읽는다 (실제 사이트에서는 https://forcsoz.github.io/ = SITE_URL, PC 시험 때는 localhost)
+const access = makeAccess({ kvName: 'forcsoz-access' }, { siteUrl: new URL('./', location.href).href });
 startApp({ core, access, site: createSite({ access }), read: fetchPublic, filesOpts: {} });

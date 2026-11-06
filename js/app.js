@@ -31,6 +31,7 @@ const ICON = {
   theme: '<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>',
 };
 const icon = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // [길, 이름, 그림, 볼 수 있는 가장 낮은 역할]
 const NAV_ALL = [
@@ -54,13 +55,26 @@ export async function startApp(env) {
 
 // ---------- 시작 ----------
 // 첫 화면은 공개(기술공지). 기억해 둔 로그인이 있으면(access.resume) 그 역할로 연다
+//   공개 화면은 이 기기 저장소(IndexedDB: core.ready·기억한 로그인)를 기다리지 않고 먼저 그린다 — IndexedDB 가 느리거나 막힌
+//   브라우저에서도 «여는 중…» 에 머물지 않는다. 공개 항목을 1.5초 안에 못 받으면 «준비 중» 공개 화면부터, 받으면 아래에서 다시 그린다.
+//   처음 설정 전(keyring.json·공개 항목 없음 → 404)이면 공개 화면에 관리자용 «처음 설정»
 async function boot() {
-  const { core, site } = A.env;
+  const { core, site, access } = A.env;
   A.mode = 'loading';
+  let pubDone = false;
+  const pub = site.loadPublic().then(r => { pubDone = true; return r; }, e => { console.warn(e); return null; });
+  const first = await Promise.race([pub, sleep(1500).then(() => 'late')]);
+  let shown = null; // 먼저 그린 공개 화면 { mode, sig }
+  if (A.mode === 'loading') {
+    if (first === 'ok') { A.role = 'public'; enterSite({ go: false }); } else { A.mode = 'none'; A.role = 'public'; route(); }
+    shown = { mode: A.mode, sig: site.sig };
+  }
+  await Promise.race([pub, sleep(10000)]);
   await core.ready;
+  if (access.me()) return; // 그사이 로그인했다 (doLogin 이 화면을 맡는다)
   let r;
   try {
-    r = await site.load();
+    r = await site.load({ skipPublic: pubDone });
   } catch (e) {
     A.mode = 'none';
     A.loginError = e.message;
@@ -70,6 +84,8 @@ async function boot() {
   if (info?.canWrite) {
     try { return await enterWrite(info, { go: false }); } catch (e) { console.warn(e); toast(e.message, 'error'); }
   }
+  // 기억한 로그인이 없고 먼저 그린 공개 화면 그대로면 다시 그리지 않는다 (로그인 화면에 넣고 있던 글자를 지우지 않게)
+  if (!info && shown && shown.sig === site.sig && shown.mode === A.mode && A.mode === (r === 'none' ? 'none' : 'site')) return;
   if (r === 'none' && !info) { A.mode = 'none'; A.role = 'public'; return route(); }
   return enterSite({ go: false });
 }
@@ -227,7 +243,20 @@ function render() {
   if (A.mode === 'loading') { app.innerHTML = '<div class="lock"><p class="muted">여는 중…</p></div>'; return; }
   if (A.mode === 'none') {
     document.body.dataset.shell = '';
-    app.innerHTML = `<div class="lock"><div class="lock-card"><div class="brand-big"><img src="assets/icon.svg" alt=""><div><b>OZ 보안 패치</b><small>FORCS 컨설팅</small></div></div><p class="note-box">아직 게시된 내용이 없어요. 관리자가 자료를 넣고 게시하면 열려요.</p>${A.loginError ? `<p class="err">${esc(A.loginError)}</p>` : ''}<a class="btn primary" href="#/login">로그인</a></div></div>`;
+    // 아직 게시된 것이 없을 때(처음 설정 전 포함)의 공개 화면: 이름 · 짧은 소개 · «로그인» · (처음 설정 전이면) 관리자용 «처음 설정»
+    app.innerHTML = `
+  <header class="topbar">
+    <a class="brand" href="#/"><img src="assets/icon.svg" alt=""><span><b>OZ 보안 패치</b><small>FORCS 컨설팅 · 기술공지</small></span></a>
+    <div class="top-right"><a class="btn sm primary" href="#/login">로그인</a></div>
+  </header>
+  <main id="view" class="view pub-empty" tabindex="-1">
+    <section class="login-cta"><div><b>OZ 보안 패치 기술공지</b><span class="muted">누구나 볼 수 있는 공지예요. 유지보수 고객은 인증번호로, 컨설팅팀은 이메일과 코드로 로그인하면 다운로드 링크와 가이드 문서가 열려요.</span></div><a class="btn primary" href="#/login">로그인</a></section>
+    <section class="card"><header class="card-h"><h2>준비 중이에요</h2></header>
+      <p class="note-box">아직 게시된 기술공지가 없어요. 관리자가 자료를 넣고 게시하면, 이곳에서 제품 · 버전 · 빌드를 넣고 필요한 보안 패치를 바로 확인할 수 있어요.</p>
+      ${A.loginError ? `<p class="err">${esc(A.loginError)}</p>` : ''}</section>
+    ${A.env.site.preSetup ? '<p class="muted small setup-hint">관리자이신가요? 사이트를 아직 처음 설정하지 않았어요. <a class="btn sm ghost" href="#/admin-connect/setup">처음 설정</a></p>' : ''}
+  </main>`;
+    document.title = 'OZ 보안 패치';
     return;
   }
   const key = `${A.mode}|${A.role}|${A.preview}`;
